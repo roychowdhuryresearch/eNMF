@@ -12,7 +12,7 @@ This folder contains all datasets (real and synthetic) used to reproduce the res
 2) **Place each file at the specified location**
 
 - **Face dataset**  
-  - File: `face_id_4.npy` *(may appear as `4.npy` on Drive; rename to `face_id_4.npy`)*  
+  - File: `face_id_4.npy` 
   - Destination: `Dataset/`
 
 - **Verb dataset**  
@@ -27,12 +27,12 @@ This folder contains all datasets (real and synthetic) used to reproduce the res
 - **Synthetic datasets**  
   - *Exact factorization — separable case*  
     - File: `synthetic/exacts_m_n_r_sparsity.npy`  
-    - Destination: `Dataset/exacts_dataset/`
+    - Destination: `Dataset/exact_dataset/`
   - *Exact factorization — general case*  
-    - File: `synthetic/general_m_n_r_sparsity.npy`  
+    - File: `synthetic/general_m_n_r_sparsity.npy`  (too large for github)
     - Destination: `Dataset/syn_dataset/`
   - *Noisy synthetic data*  
-    - File: `synthetic/syn_noise_SNR_X.npy`  
+    - File: `synthetic/syn_noise_SNR_X.npy`  (too large for github)
     - Destination: `Dataset/syn_dataset/`
 
 - **AudioMNIST datasets**  
