@@ -1,6 +1,6 @@
 {"real_dataset":[{
     "name": "Verb",
-    "data_dir": "Dataset/Verb",
+    "data_dir": "Dataset/verb",
     "data_path": "right_matrix.npy",
     "method_config": [
         {"method_name": "ALS", "latent_dim": 10,  "result_storage": "algo"},
