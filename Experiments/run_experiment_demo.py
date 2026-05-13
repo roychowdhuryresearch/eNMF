@@ -1,14 +1,13 @@
 """Demo cases"""
 
 import os
-import numpy as np
 from nmf_algos import NMF_ENMF, NMF_HALS
 from nmf_algos.utils.utils import load_data_matrix
 
 
 def run_single_algorithm(f_path):
     # Step 1: Load data
-    #f_path = os.path.join(data_dir, "Dataset/verb/right_matrix.npy" )
+    # f_path = os.path.join(data_dir, "Dataset/verb/right_matrix.npy" )
     org_data_mat = load_data_matrix(f_path)
     print("Loaded data with shape: ", org_data_mat.shape)
     # Step2: Specify method name
@@ -42,9 +41,8 @@ def run_single_algorithm_multiple_times(f_path):
 if __name__ == "__main__":
     project_dir = os.path.join(os.getcwd())
     suffix = "tc"
-    #run_single_algorithm(project_dir)
-    data_path = os.path.join(project_dir, "Dataset/verb/right_matrix.npy" )
+    # run_single_algorithm(project_dir)
+    data_path = os.path.join(project_dir, "Dataset/verb/right_matrix.npy")
     run_single_algorithm_multiple_times(data_path)
     # for latent_dim in [5, 10, 15, 20, 25]:
     #     print(fetch_enmf_run_time(project_dir, "Face", latent_dim, suffix))
-

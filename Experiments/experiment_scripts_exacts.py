@@ -1,40 +1,86 @@
-import numpy as np
+"""Run NMF baseline algorithms on exact synthetic datasets."""
+
+import logging
 import time
-import os
-import shutil
+from pathlib import Path
 
-from nmf_algos.utils.utils import  load_data_basedon_proto, load_data_matrix
-from nmf_algos import NMF_ENMF, NMF_HALS, NMF_AOADMM, NMF_MUL, NMF_GRADMUL, NMF_ALS
+from nmf_algos.registry import get_algorithm_class
+from nmf_algos.utils.utils import load_data_basedon_proto, load_data_matrix
 
-# TODO: ENMF multiple runs. Check verbose option, only print save dir here.
-# Run to target error, if not reached with three hour, stop anyway.
-project_dir = os.path.join(os.getcwd())
-proto_path = os.path.join(project_dir, "Experiments/configs/exact_data_algo_exp.json")
-dataset_config = load_data_basedon_proto(proto_path, mode="exactDatasets")
-latent_dim = 50
-target_run_time = 600
-method_name_list = ["HALS", "MUL", "AOADMM", "GRADMUL", "ALS"]
-clean_previous_result = True
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+)
+logger = logging.getLogger(__name__)
 
-for dataset_config in dataset_config.exact_dataset:
-    for method_name in method_name_list:
-        start_t = time.time()
-        f_path = os.path.join(
-            project_dir, dataset_config.data_dir, dataset_config.data_path
+
+def load_exact_dataset_config(config_path):
+    """Load exact-dataset experiment configuration."""
+    return load_data_basedon_proto(config_path, mode="exactDatasets")
+
+
+def load_exact_matrix(project_dir, dataset_config):
+    """Load one exact synthetic dataset matrix."""
+    data_path = project_dir / dataset_config.data_dir / dataset_config.data_path
+    data_dict = load_data_matrix(data_path)
+    return data_dict["X"]
+
+
+def run_algorithm(method_name, X, dataset_name, rank, target_run_time):
+    """Run one NMF algorithm on one dataset."""
+    params = {
+        "X": X.copy(),  # protect shared data from in-place modification
+        "dataset_name": dataset_name,
+        "r": rank,
+    }
+
+    algorithm_cls = get_algorithm_class(method_name)
+    algorithm = algorithm_cls(method_name=method_name, params=params)
+
+    start_time = time.time()
+    algorithm.run_within_fixed_time(target_run_time=target_run_time)
+    elapsed = time.time() - start_time
+
+    logger.info(
+        "Finished %s on %s with rank=%d in %.2f seconds.",
+        method_name,
+        dataset_name,
+        rank,
+        elapsed,
+    )
+
+    return algorithm
+
+
+def main():
+    project_dir = Path.cwd()
+    config_path = project_dir / "Experiments" / "configs" / "exact_data_algo_exp.json"
+
+    rank = 50
+    target_run_time = 600
+    method_names = ["HALS", "MUL", "AOADMM", "GRADMUL", "ALS"]
+
+    config = load_exact_dataset_config(config_path)
+
+    for dataset_config in config.exact_dataset:
+        X = load_exact_matrix(project_dir, dataset_config)
+
+        logger.info(
+            "Loaded dataset %s from %s with shape %s.",
+            dataset_config.name,
+            dataset_config.data_path,
+            X.shape,
         )
-        data_dict = load_data_matrix(f_path)
-        org_data_mat = data_dict["X"]
-        print(org_data_mat.shape)
-        print(dataset_config.data_path)
-        params = {
-            "X": org_data_mat,
-            "dataset_name": dataset_config.name,
-            "r": latent_dim,
-        }
-        instance_name = f"NMF_{method_name}"
-        method_instance = globals()[instance_name](
-            method_name=method_name, params=params
-        )
-        print(method_instance.iter_save_dir)
-        method_instance.run_within_fixed_time(target_run_time=target_run_time)
-        # print(f"Finished Method {method_name} in {time.time()- start_t} seconds")
+
+        for method_name in method_names:
+            run_algorithm(
+                method_name=method_name,
+                X=X,
+                dataset_name=dataset_config.name,
+                rank=rank,
+                target_run_time=target_run_time,
+            )
+
+
+if __name__ == "__main__":
+    main()

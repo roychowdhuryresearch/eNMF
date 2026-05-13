@@ -1,25 +1,72 @@
-import numpy as np
-import time
-import os
-from nmf_algos.utils.utils import load_data_basedon_proto, load_data_matrix
-from nmf_algos import NMF_ENMF, NMF_HALS, NMF_AOADMM, NMF_MUL, NMF_GRADMUL, NMF_ALS
+"""Run NMF baseline algorithms on the face dataset."""
 
-# Run to target error, if not reached with three hour, stop anyway.
-method_name_list = ["HALS", "MUL", "AOADMM", "GRADMUL", "ALS"]
-latent_dim_list = [5, 10, 15, 20, 25]
-project_dir = os.path.join(os.getcwd())
-f_path = os.path.join(project_dir, "Dataset/face_id_4.npy")
-org_data_mat = load_data_matrix(f_path) + 255.0
-print("Loaded data with shape: ", org_data_mat.shape)
-target_run_time = 1000
-for method_name in method_name_list:
-    for latent_dim in latent_dim_list:
-        start_t = time.time()
-        params = {"X": org_data_mat, "dataset_name": "Face", "r": latent_dim}
-        instance_name = f"NMF_{method_name}"
-        method_instance = globals()[instance_name](
-            method_name=method_name, params=params
-        )
-        method_instance.run_within_fixed_time(target_run_time=target_run_time)
-        print(f"Finished Method {method_name} in {time.time()- start_t} seconds")
-# nmf_enmf = NMF_ENMF(method_name=method_name, params=params)
+import logging
+import time
+from pathlib import Path
+
+from nmf_algos.registry import get_algorithm_class
+from nmf_algos.utils.utils import load_data_matrix
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+
+def load_face_dataset(data_path):
+    """Load and shift the face dataset to make it nonnegative."""
+    X = load_data_matrix(data_path) + 255.0
+    logger.info("Loaded face dataset with shape %s.", X.shape)
+    return X
+
+
+def run_algorithm(method_name, X, dataset_name, rank, target_run_time):
+    """Run one NMF algorithm for one latent dimension."""
+    params = {
+        "X": X.copy(),  # protect shared data from in-place modification
+        "dataset_name": dataset_name,
+        "r": rank,
+    }
+
+    algorithm_cls = get_algorithm_class(method_name)
+    algorithm = algorithm_cls(method_name=method_name, params=params)
+
+    start_time = time.time()
+    algorithm.run_within_fixed_time(target_run_time=target_run_time)
+    elapsed = time.time() - start_time
+
+    logger.info(
+        "Finished %s with rank=%d in %.2f seconds.",
+        method_name,
+        rank,
+        elapsed,
+    )
+
+    return algorithm
+
+
+def main():
+    project_dir = Path.cwd()
+    data_path = project_dir / "Dataset" / "face_id_4.npy"
+
+    dataset_name = "Face"
+    method_names = ["HALS", "MUL", "AOADMM", "GRADMUL", "ALS"]
+    ranks = [5, 10, 15, 20, 25]
+    target_run_time = 1000
+
+    X = load_face_dataset(data_path)
+
+    for method_name in method_names:
+        for rank in ranks:
+            run_algorithm(
+                method_name=method_name,
+                X=X,
+                dataset_name=dataset_name,
+                rank=rank,
+                target_run_time=target_run_time,
+            )
+
+
+if __name__ == "__main__":
+    main()

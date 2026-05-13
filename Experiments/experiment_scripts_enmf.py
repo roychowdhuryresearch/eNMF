@@ -1,52 +1,91 @@
-import numpy as np
+"""Run eNMF on the AudioMNIST dataset."""
+
+import logging
 import time
-import os
-from nmf_algos.utils.utils import (
-    load_data_basedon_proto,
-    load_data_matrix,
-    audio_preprocess,
-    load_audio_data,
+from pathlib import Path
+
+import numpy as np
+
+from nmf_algos.registry import get_algorithm_class
+from nmf_algos.utils.utils import audio_preprocess, load_audio_data
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
 )
-from nmf_algos import NMF_ENMF, NMF_HALS, NMF_AOADMM, NMF_MUL, NMF_GRADMUL, NMF_ALS
+logger = logging.getLogger(__name__)
 
-# TODO: ENMF multiple runs. Check verbose option, only print save dir here.
-# Run to target error, if not reached with three hour, stop anyway.
 
-project_dir = os.path.join(os.getcwd())
+def load_dataset(data_path):
+    """Load and preprocess the AudioMNIST data matrix."""
+    data_mat, _ = load_audio_data(data_path)
+    data_mat = audio_preprocess(data_mat)
 
-dataset_name = "Audiomnist"
-f_path = os.path.join(project_dir, "Dataset/audiomnist.npy.npz")
-latent_dim_list = [10, 20, 40, 80, 100]
-target_run_time = 60
-# target_run_time = 600
-# target_run_time = 1000
-rerun_times = 3
-method_name_list = ["ENMF"]
-for method_name in method_name_list:
-    for latent_dim in latent_dim_list[:1]:
-        start_t = time.time()
-        dataset_new_name = f"{dataset_name}"
-        data_mat, data_labels = load_audio_data(f_path)
-        data_new_mat = audio_preprocess(data_mat)
-        print("data_new_mat min val", np.min(data_new_mat))
-        admm_config = {
-            "rho": 5,
-            "epsilon": 10 ** (-4),
-            "max_iter": 2000,
-            "tau_inc": 1.1,
-            "tau_dec": 1.1,
-            "num_steps": 10,
-            "hals_rounds": 1,
-            "rerun_times": rerun_times,
-        }
-        params = {"X": data_new_mat, "dataset_name": dataset_new_name, "r": latent_dim}
-        params.update(admm_config)
-        instance_name = f"NMF_{method_name}"
-        method_instance = globals()[instance_name](
-            method_name=method_name, params=params
-        )
-        # method_instance.basic_run()
-        method_instance.run_within_fixed_time(target_run_time=target_run_time)
-        print(method_instance.intermediate_result_dict)
-        print(f"Finished Method {method_name} in {time.time()- start_t} seconds")
-# nmf_enmf = NMF_ENMF(method_name=method_name, params=params)
+    logger.info(
+        "Loaded data: shape=%s, min=%.6e, max=%.6e",
+        data_mat.shape,
+        np.min(data_mat),
+        np.max(data_mat),
+    )
+
+    return data_mat
+
+
+def run_algorithm(method_name, X, dataset_name, rank, target_run_time, rerun_times):
+    """Run one NMF algorithm with one latent dimension."""
+    params = {
+        "X": X.copy(),  # protect the shared data from in-place modification
+        "dataset_name": dataset_name,
+        "r": rank,
+        "rerun_times": rerun_times,
+        # eNMF / ADMM-related parameters
+        "rho": 5,
+        "epsilon": 1e-4,
+        "max_iter": 2000,
+        "tau_inc": 1.1,
+        "tau_dec": 1.1,
+        "num_steps": 10,
+        "hals_rounds": 1,
+    }
+
+    algorithm_cls = get_algorithm_class(method_name)
+    algorithm = algorithm_cls(method_name=method_name, params=params)
+
+    start_time = time.time()
+    algorithm.run_within_fixed_time(target_run_time=target_run_time)
+    elapsed = time.time() - start_time
+
+    logger.info(
+        "Finished %s with rank=%d in %.2f seconds.",
+        method_name,
+        rank,
+        elapsed,
+    )
+
+
+def main():
+    project_dir = Path.cwd()
+    data_path = project_dir / "Dataset" / "audiomnist.npy.npz"
+
+    dataset_name = "Audiomnist"
+    method_names = ["ENMF"]
+    ranks = [10, 20, 40, 80, 100]
+    target_run_time = 60
+    rerun_times = 3
+
+    X = load_dataset(data_path)
+
+    for method_name in method_names:
+        for rank in ranks:
+            run_algorithm(
+                method_name=method_name,
+                X=X,
+                dataset_name=dataset_name,
+                rank=rank,
+                target_run_time=target_run_time,
+                rerun_times=rerun_times,
+            )
+
+
+if __name__ == "__main__":
+    main()

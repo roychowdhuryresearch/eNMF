@@ -6,7 +6,6 @@ This repository provides a clean Python implementation of several **Non-negative
 - **NMFC algorithms:** `ADM`, `SCD`, `MUL`, `eNMF` (constrained)
 - **Datasets:** Verb, MovieLens, AudioMNIST, and synthetic datasets (exact factorization & noisy)
 - **Config-driven experiments** with reproducible settings
-- Optional plotting utilities
 
 ---
 

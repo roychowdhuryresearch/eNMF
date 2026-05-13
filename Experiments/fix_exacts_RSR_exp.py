@@ -1,30 +1,95 @@
-import numpy as np
-import os
-from multiprocessing import Pool
+"""Run eNMF on exact synthetic datasets for the RSR experiment."""
 
-from nmf_algos.utils.utils import load_data_basedon_proto, fetch_factors_from_result_path
+import logging
+from pathlib import Path
+
 from nmf_algos import NMF_ENMF
+from nmf_algos.utils.utils import (
+    fetch_factors_from_result_path,
+    load_data_basedon_proto,
+)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 
-project_dir = os.path.join(os.getcwd())
-# repeat the experment only 1 time
-rerun_times = 1
-proto_path = os.path.join(project_dir, "Experiments/configs/exact_data_algo_RSR.json")
-dataset_configs = load_data_basedon_proto(proto_path, mode="exactDatasets").exact_dataset
-print(dataset_configs)
+def load_experiment_config(config_path):
+    """Load exact-dataset experiment configuration."""
+    return load_data_basedon_proto(config_path, mode="exactDatasets").exact_dataset
 
-for dataset_config in dataset_configs[:1]:
-    f_path = os.path.join(project_dir, dataset_config.data_dir, dataset_config.data_path)
-    print(dataset_config.data_path)
-    org_data_mat = fetch_factors_from_result_path(f_path, f_type="exacts", key_list=["X"])
-    print("org_data_mat shape", org_data_mat.shape)
-    latent_dim = int(dataset_config.method_config[0].latent_dim)
-    #print("latent dim:", latent_dim)
-    params = {"X": org_data_mat, "dataset_name":dataset_config.name, "r": latent_dim}
-    admm_config = {"rho": 5, "epsilon":10 ** (-4), "max_iter": 10000, "tau_inc":1.1, "tau_dec":1.1, "num_steps":10, "hals_rounds":1, "rerun_times":rerun_times}
-    params.update(admm_config)
+
+def load_exact_matrix(project_dir, dataset_config):
+    """Load the exact synthetic data matrix."""
+    data_path = project_dir / dataset_config.data_dir / dataset_config.data_path
+    return fetch_factors_from_result_path(
+        data_path,
+        f_type="exacts",
+        key_list=["X"],
+    )
+
+
+def build_enmf_params(X, dataset_name, rank, rerun_times):
+    """Build eNMF parameters."""
+    return {
+        "X": X.copy(),  # protect shared data from in-place modification
+        "dataset_name": dataset_name,
+        "r": rank,
+        "rho": 5,
+        "epsilon": 1e-4,
+        "max_iter": 10000,
+        "tau_inc": 1.1,
+        "tau_dec": 1.1,
+        "num_steps": 10,
+        "hals_rounds": 1,
+        "rerun_times": rerun_times,
+    }
+
+
+def run_enmf_on_dataset(project_dir, dataset_config, rerun_times):
+    """Run eNMF on one exact synthetic dataset."""
+    X = load_exact_matrix(project_dir, dataset_config)
+    rank = int(dataset_config.method_config[0].latent_dim)
+
+    logger.info(
+        "Loaded dataset %s from %s with shape %s and rank=%d.",
+        dataset_config.name,
+        dataset_config.data_path,
+        X.shape,
+        rank,
+    )
+
+    params = build_enmf_params(
+        X=X,
+        dataset_name=dataset_config.name,
+        rank=rank,
+        rerun_times=rerun_times,
+    )
+
     nmf_enmf = NMF_ENMF(params=params)
     nmf_enmf.basic_run()
-    #nmf_enmf.run_within_fixed_time(target_run_time=target_t)
+
+    logger.info("Finished eNMF on dataset %s.", dataset_config.name)
+
+    return nmf_enmf
 
 
+def main():
+    project_dir = Path.cwd()
+    config_path = project_dir / "Experiments" / "configs" / "exact_data_algo_RSR.json"
+
+    rerun_times = 1
+    dataset_configs = load_experiment_config(config_path)
+
+    for dataset_config in dataset_configs[:1]:
+        run_enmf_on_dataset(
+            project_dir=project_dir,
+            dataset_config=dataset_config,
+            rerun_times=rerun_times,
+        )
+
+
+if __name__ == "__main__":
+    main()
