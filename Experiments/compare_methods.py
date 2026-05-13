@@ -12,13 +12,13 @@ from nmf_algos import NMF_ENMF
 method_name_list = ["ALS", "AOADMM"]  # "HALS, "ENMF"
 project_dir = os.path.join(os.getcwd(), "ENMF")
 ## Exact dataset
-# proto_path = os.path.join(project_dir, "Data/exact_data_algo_exp.json")
+# proto_path = os.path.join(project_dir, "Experiments/configs/exact_data_algo_exp.json")
 # dataset_config = load_data_basedon_proto(proto_path, mode="exactDatasets").exact_dataset
 ## Synthetic datasets with different sparsities
-# proto_path = os.path.join(project_dir, "Data/syn_data_algo_exp.json")
+# proto_path = os.path.join(project_dir, "Experiments/configs/syn_data_algo_exp.json")
 # dataset_configs = load_data_basedon_proto(proto_path, mode="synDatasets").real_dataset
 
-proto_path = os.path.join(project_dir, "Data/exact_data_algo_RSR.json")
+proto_path = os.path.join(project_dir, "Experiments/configs/exact_data_algo_RSR.json")
 dataset_configs = load_data_basedon_proto(
     proto_path, mode="exactDatasets"
 ).exact_dataset

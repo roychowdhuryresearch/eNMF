@@ -24,7 +24,6 @@ nmfc_scd = NMFC_SCD
 
 
 __all__ = [
-    "NMF",
     "NMF_ENMF",
     "NMF_AOADMM",
     "NMF_HALS",

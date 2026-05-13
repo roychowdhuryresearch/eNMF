@@ -1,17 +1,19 @@
-import os
 import time
+import logging
+
 import numpy as np
 from numpy import linalg as LA
-from nmf_algos.utils.utils import load_data_basedon_proto, load_data_matrix
+
+from nmf_algos.NMF_base import NMFBase
 from nmf_algos.utils.ENMF_utils import (
     gen_svd_sol,
     admm_rotation,
     move_to_positive_orthant,
-    HALS_pos
+    HALS_pos,
 )
 from nmf_algos.utils.algo_utils import calculate_obj_NMF
 
-from nmf_algos.NMF_base import NMFBase
+logger = logging.getLogger(__name__)
 
 
 class NMF_ENMF(NMFBase):
@@ -19,84 +21,97 @@ class NMF_ENMF(NMFBase):
         super().__init__(method_name, params)
         self.method_default_init()
         self.method_config_init(params)
-        print("self.save_dir", self.save_dir)
-        print("self.iter_save_dir", self.iter_save_dir)
-        # set initial factors: moved to basic run
-        # self.factor_init(params)
 
     def method_default_init(self):
         self.run_mode = ""
-        # (TODO) rerun times
         self.rerun_times = 1
         self.dataset_name = "exp"
         self.target_error = 0
-        self.target_run_time = 3600  # run for one hour #None
-        # (TODO) refine description: ADMM
+        self.target_run_time = 3600
         self.mu = 2
         self.rho_mode = 0
         self.normalize_data = False
         self.scale = 1.0
+
         self.enmf_config_init()
-        # Stores intermediate step results special for eNMF algorithm.
         self.intermediate_result_dict = {}
 
     def data_normalization(self):
-        gap = (np.max(self.X) - np.min(self.X)) * 1.0
+        gap = float(np.max(self.X) - np.min(self.X))
+        if gap <= 0:
+            raise ValueError("Cannot normalize data because max(X) equals min(X).")
+
         self.scaled_X = self.X / gap
         self.scale = gap
-        print(
-            f"Data min {np.min(self.X)} max {np.max(self.X)}. Scale data by {self.scale}"
+
+        logger.info(
+            "Normalized data with min=%s, max=%s, scale=%s.",
+            np.min(self.X),
+            np.max(self.X),
+            self.scale,
         )
 
     def enmf_config_init(self):
         self.admm_config = {
             "rho": 5,
-            "epsilon": 10 ** (-4),
+            "epsilon": 1e-4,
             "max_iter": 4000,
             "tau_inc": 1.1,
             "tau_dec": 1.1,
         }
-        self.ascent_config = {"tol_asc": 0.2, "inner_iter_asc": 2, "num_steps": 100}
-        self.descent_config = {"hals_rounds": 10**2}
+        self.ascent_config = {
+            "tol_asc": 0.2,
+            "inner_iter_asc": 2,
+            "num_steps": 100,
+        }
+        self.descent_config = {
+            "hals_rounds": 10**2,
+        }
+
         self.combined_config_dict = {}
         self.combined_config_dict.update(self.admm_config)
         self.combined_config_dict.update(self.ascent_config)
         self.combined_config_dict.update(self.descent_config)
+
         for key, value in self.combined_config_dict.items():
-            setattr(NMF_ENMF, key, value)
+            setattr(self, key, value)
 
     def factor_init(self, params):
-        # Load intialized factors if there are.
+        """
+        Initialize eNMF factors by either loading cached SVD/rotation results
+        or computing them from the input matrix.
+        """
         if self.normalize_data:
             self.data_normalization()
             self.X = self.scaled_X
         else:
             self.scaled_X = self.X
 
-        if ("U_eig" in params) and ("V_eig" in params):
+        if "U_eig" in params and "V_eig" in params:
             self.U_svd = params["U_eig"]
             self.V_svd = params["V_eig"]
-            # Ignore the time running for SVD if not provided
-            self.t_svd = params["t_svd"] if "t_svd" in params else 0
-            print("Step1: Loaded SVD solution")
+            self.t_svd = params.get("t_svd", 0)
+            logger.info("Step 1: loaded SVD factors.")
         else:
             self.get_svd()
-            print("t_svd", self.t_svd)
-            print("Step1: Generated SVD initilizated factors")
-        # self.svd_error = calculate_obj_NMF(self.X, self.U_svd, self.V_svd, self.trace_XTX)
-        # Use LA.norm instead due to the NAN rounding error when svd_error close to 0
+            logger.info("Step 1: generated SVD factors in %.4f seconds.", self.t_svd)
+
+        # Use LA.norm instead of calculate_obj_NMF to avoid numerical issues
+        # when the SVD reconstruction error is close to zero.
         self.svd_error = LA.norm(self.X - self.U_svd @ self.V_svd.T)
 
-        if ("U_rotate" in params) and ("V_rotate" in params):
-            # extend to case where RCR denote
+        if "U_rotate" in params and "V_rotate" in params:
             self.U_rotation = params["U_rotate"]
             self.V_rotation = params["V_rotate"]
-            self.t_rotate = params["t_rotate"] if "t_rotate" in params else 0
-            print("Step2: Loaded rotation solution")
+            self.t_rotate = params.get("t_rotate", 0)
+            self.dist_po = params.get("distance_po", None)
+            logger.info("Step 2: loaded rotated factors.")
         else:
             self.get_rotation()
-            print("Step2: Generated rotated factors.")
-            print("t_rotation", self.t_rotate)
+            logger.info(
+                "Step 2: generated rotated factors in %.4f seconds.",
+                self.t_rotate,
+            )
 
     def store_intermedia_results(self):
         svd_dict = {
@@ -133,29 +148,19 @@ class NMF_ENMF(NMFBase):
 
     def get_svd(self):
         """
-        Step 1:  Obtaining the SVD solution as initial factors.
+        Step 1: Obtain the SVD solution as the initial low-rank factors.
         """
         start_t = time.time()
-        U_svd, V_svd = gen_svd_sol(self.X, self.r)
+        self.U_svd, self.V_svd = gen_svd_sol(self.X, self.r)
         self.t_svd = time.time() - start_t
-        self.U_svd = U_svd
-        self.V_svd = V_svd
 
     def get_rotation(self):
         """
-        Step 2: Computing the rotated SVD solution closest to the positive orthant.
+        Step 2: Compute the rotated SVD solution closest to the positive orthant.
         """
         W = np.vstack((self.U_svd, self.V_svd))
+
         start_t = time.time()
-        print(
-            self.rho,
-            self.epsilon,
-            self.max_iter,
-            self.tau_inc,
-            self.tau_dec,
-            self.mu,
-            self.rho_mode,
-        )
         res_R, obj_f1 = admm_rotation(
             W,
             self.rho,
@@ -168,17 +173,18 @@ class NMF_ENMF(NMFBase):
         )
         self.t_rotate = time.time() - start_t
 
-        UR_star = np.matmul(self.U_svd, res_R)
-        VR_star = np.matmul(self.V_svd, res_R)
+        self.U_rotation = self.U_svd @ res_R
+        self.V_rotation = self.V_svd @ res_R
+        self.dist_po = obj_f1
 
-        self.U_rotation = UR_star
-        self.V_rotation = VR_star
-        self.dist_po = obj_f1  ## Added this line
-        print("self.dist_po", self.dist_po)
+        logger.info(
+            "Distance to positive orthant after rotation: %.6e.",
+            self.dist_po,
+        )
 
     def move_to_PO(self):
         """
-        Step 3: Attaining feasibility of the rotated factors using PBCD.
+        Step 3: Attain feasibility of the rotated factors using PBCD.
         """
         start_t = time.time()
         self.U_mp, self.V_mp = move_to_positive_orthant(
@@ -191,19 +197,26 @@ class NMF_ENMF(NMFBase):
             self.dist_po,
         )
         self.t_mp = time.time() - start_t
+
         self.hitmp_error = calculate_obj_NMF(
-            self.X, self.U_mp, self.V_mp, self.trace_XTX
+            self.X,
+            self.U_mp,
+            self.V_mp,
+            self.trace_XTX,
         )
-        print("Step3: t_mp ", self.t_mp)
+
+        logger.info(
+            "Step 3: moved factors to positive orthant in %.4f seconds.",
+            self.t_mp,
+        )
 
     def descend_to_enmf(self):
         """
-        Step 4: Descending to the eNMF factors using HALS.
+        Step 4: Refine the feasible factors using HALS.
         """
         start_t = time.time()
-        ### compare hit bound error with svd solution: if close enough, skip HALS
 
-        if np.abs(self.hitmp_error - self.svd_error) > 10 ** (-4):
+        if abs(self.hitmp_error - self.svd_error) > 1e-4:
             hals_target_run_time = (
                 self.target_run_time - self.t_svd - self.t_mp - self.t_rotate
             )
@@ -219,18 +232,34 @@ class NMF_ENMF(NMFBase):
             )
         else:
             self.U_nmf, self.V_nmf = self.U_mp, self.V_mp
+            logger.info(
+                "Step 4: skipped HALS because the positive-orthant error is close to the SVD error."
+            )
+
         self.t_descent = time.time() - start_t
         self.total_runtime = self.t_descent + self.t_mp + self.t_svd + self.t_rotate
+
         self.enmf_error = calculate_obj_NMF(
-            self.X, self.U_nmf, self.V_nmf, self.trace_XTX
+            self.X,
+            self.U_nmf,
+            self.V_nmf,
+            self.trace_XTX,
+        )
+
+        logger.info(
+            "Step 4: completed HALS refinement in %.4f seconds. Final error: %.6e.",
+            self.t_descent,
+            self.enmf_error,
         )
 
     def core_run(self):
         self.trace_XTX = np.trace(self.X.T @ self.X)
         self.move_to_PO()
         self.descend_to_enmf()
+
         self.U = self.U_nmf
         self.V = self.V_nmf
+
         if self.normalize_data:
             self.rescale_result()
 
@@ -239,63 +268,47 @@ class NMF_ENMF(NMFBase):
         self.U = self.U * self.scale
         self.U_nmf = self.U_nmf * self.scale
         self.trace_XTX = np.trace(self.X.T @ self.X)
+
         self.enmf_error = calculate_obj_NMF(
-            self.X, self.U_nmf, self.V_nmf, self.trace_XTX
+            self.X,
+            self.U_nmf,
+            self.V_nmf,
+            self.trace_XTX,
         )
 
     def basic_run(self):
-        # Step1 and 2 are done in self.factor_init()
-        for run_i in range(self.rerun_times):
+        for _ in range(self.rerun_times):
             self.reset_status(self.params)
             self.cur_run_id += 1
             self.core_run()
+
             file_name = f"{self.method_name}_{self.dataset_name}_r_{self.r}_default.npy"
-            # Move results to intermediate_result_dict.
             self.store_intermedia_results()
-            # save time and error, and intermedia results for ENMF
             self.save_factors(file_name, self.intermediate_result_dict)
 
     def run_to_target_error(self, target_error, save_time_error=False):
-        for run_i in range(self.rerun_times):
+        for _ in range(self.rerun_times):
             self.reset_status(self.params)
             self.set_params({"target_error": target_error, "hals_rounds": 10**10})
             self.cur_run_id += 1
-
             self.core_run()
+
             file_name = f"{self.model_name}_{self.dataset_name}_r_{self.r}_ec.npy"
             self.store_intermedia_results()
-            # save time and error, and intermedia results for ENMF
             self.save_factors(file_name, self.intermediate_result_dict)
 
     def run_within_fixed_time(self, target_run_time, save_time_error=False):
-        for run_i in range(self.rerun_times):
+        for _ in range(self.rerun_times):
             self.reset_status(self.params)
-            self.set_params({"target_run_time": target_run_time, "hals_rounds": 10**10})
+            self.set_params(
+                {
+                    "target_run_time": target_run_time,
+                    "hals_rounds": 10**10,
+                }
+            )
             self.cur_run_id += 1
-
             self.core_run()
+
             file_name = f"{self.model_name}_{self.dataset_name}_r_{self.r}_tc.npy"
             self.store_intermedia_results()
-            # save time and error, and intermedia results for ENMF
             self.save_factors(file_name, self.intermediate_result_dict)
-
-
-def test():
-    data_dir = os.getcwd()
-    print(os.getcwd())
-    proto_path = os.path.join(data_dir, "ENMF/Data", "real_data_algo_exp1.json")
-    dataset_config = load_data_basedon_proto(proto_path, mode="realDataset")
-    f_path = os.path.join(dataset_config.data_dir, dataset_config.data_path)
-    org_data_mat = load_data_matrix(f_path)
-    print("Loaded data matrix with shape:", org_data_mat.shape)
-    latent_dims = [10, 20, 40, 80, 100]
-    for latent_dim in latent_dims:
-        params = {"X": org_data_mat, "dataset_name": "Verb", "r": latent_dim}
-        print(os.getcwd())
-        nmf_enmf = NMF_ENMF(params=params)
-        nmf_enmf.basic_run()
-        print(nmf_enmf.intermediate_result_dict)
-
-
-if __name__ == "__main__":
-    test()

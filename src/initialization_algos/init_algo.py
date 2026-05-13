@@ -1,7 +1,8 @@
-#NMF clustering initialization algorithms
+# NMF clustering initialization algorithms
 
 import numpy as np
-from initialization_algos.pba_algo_utils import nmf_init_pba
+from .pba_algo_utils import nmf_init_pba
+
 
 def nmf_init_random(V, r, seed=0, scale=0.01, dist="uniform"):
     rng = np.random.default_rng(seed)
@@ -16,8 +17,10 @@ def nmf_init_random(V, r, seed=0, scale=0.01, dist="uniform"):
         raise ValueError("dist must be 'uniform' or 'normal'")
     return W, H
 
+
 def _safe_norm(x):
     return np.sqrt(np.sum(x * x))
+
 
 def nmf_init_nndsvd(V, r, variant="nndsvd", seed=0, eps=1e-12):
     """
@@ -92,7 +95,7 @@ def nmf_init_nndsvd(V, r, variant="nndsvd", seed=0, eps=1e-12):
     else:
         raise ValueError("variant must be 'nndsvd', 'nndsvda', or 'nndsvdar'")
 
-        
+
 def nmf_init_kmeans_columns(V, r, iters=20, seed=0):
     rng = np.random.default_rng(seed)
     m, n = V.shape
@@ -107,9 +110,9 @@ def nmf_init_kmeans_columns(V, r, iters=20, seed=0):
     for _ in range(iters):
         # compute distances to centers (squared L2)
         # dist(j,k) = ||V[:,j] - C[:,k]||^2
-        V2 = np.sum(V * V, axis=0, keepdims=True)          # (1, n)
-        C2 = np.sum(C * C, axis=0, keepdims=True).T        # (r, 1)
-        dist = C2 + V2 - 2.0 * (C.T @ V)                   # (r, n)
+        V2 = np.sum(V * V, axis=0, keepdims=True)  # (1, n)
+        C2 = np.sum(C * C, axis=0, keepdims=True).T  # (r, 1)
+        dist = C2 + V2 - 2.0 * (C.T @ V)  # (r, n)
         new_assign = np.argmin(dist, axis=0)
 
         if np.all(new_assign == assign):
@@ -145,6 +148,7 @@ def _sym_decorrelation(T, eps=1e-12):
     A_inv_sqrt = E @ np.diag(1.0 / np.sqrt(d)) @ E.T
     return A_inv_sqrt @ T
 
+
 def _pca_project_no_center(M, k):
     """
     PCA projection without centering (as described in the NICA-for-NMF algorithm). :contentReference[oaicite:2]{index=2}
@@ -161,6 +165,7 @@ def _pca_project_no_center(M, k):
     X = E_k.T @ M
     return E_k, X
 
+
 def _whiten_no_center(X, eps=1e-12):
     """
     Whiten X without centering: Z = V X, with V = E D^{-1/2} E^T. :contentReference[oaicite:3]{index=3}
@@ -172,6 +177,7 @@ def _whiten_no_center(X, eps=1e-12):
     V = E @ np.diag(1.0 / np.sqrt(d)) @ E.T
     Z = V @ X
     return V, Z
+
 
 def nmf_init_nica(M, r, maxiter=500, tol=1e-7, gamma=0.05, seed=0, eps=1e-12):
     """
@@ -199,7 +205,7 @@ def nmf_init_nica(M, r, maxiter=500, tol=1e-7, gamma=0.05, seed=0, eps=1e-12):
     E_k, X = _pca_project_no_center(M, k)
 
     # 2) Whitening (no centering)
-    V, Z = _whiten_no_center(X, eps=eps)   # Z is (k,n)
+    V, Z = _whiten_no_center(X, eps=eps)  # Z is (k,n)
 
     # 3) Initialize orthonormal rotation T
     A = rng.normal(size=(k, k))
@@ -250,13 +256,7 @@ def nmf_init_nica(M, r, maxiter=500, tol=1e-7, gamma=0.05, seed=0, eps=1e-12):
     return W0, H0
 
 
-def get_init_factors(
-    data_x,
-    r,
-    init_method="nndsvdar",
-    seed=0,
-    **kwargs
-):
+def get_init_factors(data_x, r, init_method="nndsvdar", seed=0, **kwargs):
     """
     Unified NMF initialization interface.
 
@@ -332,9 +332,9 @@ def get_init_factors(
             V,
             r,
             algo=init_method,
-            pop = kwargs.get("pop", 40),
-            eval_budget=kwargs.get("eval_budget",2500),
-            seed=seed
+            pop=kwargs.get("pop", 40),
+            eval_budget=kwargs.get("eval_budget", 2500),
+            seed=seed,
         )
 
     else:
@@ -342,4 +342,3 @@ def get_init_factors(
             f"Unknown init_method='{init_method}'. "
             "Choose from: random, nndsvd, nndsvda, nndsvdar, kmeans, nica, pso, de, fss."
         )
-    

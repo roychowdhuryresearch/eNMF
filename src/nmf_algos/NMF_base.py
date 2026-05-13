@@ -1,11 +1,10 @@
 import os
 import shutil
 import logging
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Dict, Mapping, Optional, Tuple
+from abc import ABC
+from typing import Tuple
 import numpy as np
+
 from nmf_algos.utils.utils import assert_shape, flush_dict_into_log
 
 logger = logging.getLogger(__name__)
@@ -45,7 +44,7 @@ class NMFBase(ABC):
         self.model_name = method_name
         self.method_name = method_name
         self.cur_run_id = 1  # tracking number of runs
-        print(
+        logger.info(
             f"Loaded target matrix with shape {self.X.shape}! Going to factorize it with latent dimension {self.r}"
         )
         if (self.X < 0).any():
@@ -65,7 +64,7 @@ class NMFBase(ABC):
             self.run_mode = params["run_mode"]
         if "dataset_name" in params:
             self.dataset_name = params["dataset_name"]
-        
+
         if "save_dir" in params:
             self.save_dir = params["save_dir"]
         else:
@@ -84,7 +83,7 @@ class NMFBase(ABC):
             self.iter_save_dir = os.path.join(self.save_dir, "Iters")
         if "rerun_times" in params:
             self.rerun_times = params["rerun_times"]
-        
+
         self.params = params
         self.set_params(params)
 
@@ -95,7 +94,7 @@ class NMFBase(ABC):
         os.makedirs(self.iter_save_dir)
 
     def factor_init(self, params):
-        return NotImplementedError
+        raise NotImplementedError("Subclasses must implement factor_init().")
 
     def reset_status(self, params):
         # prepare for rerun

@@ -9,7 +9,7 @@ description = "A collection of NMF algorithms with a common base class."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-authors = [{ name = "" }]
+authors = [{ name = "Qiujinglu, Tonmoy Moonsoor, Ehsan Ebrahimzadeh, Vwani Roychowdhury" }]
 dependencies = ["numpy>=1.23", "scipy>=1.10","protobuf>=4.24"]
 
 [tool.setuptools.packages.find]

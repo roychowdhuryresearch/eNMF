@@ -1,15 +1,11 @@
 """This file contains the helper functions for the enmf algorithm."""
 
-import numpy as np
-from numpy import *
-from numpy import linalg as LA
-import copy
-import matplotlib.pylab as plt
-from scipy.sparse.linalg import svds
-from numpy.linalg import svd
-from scipy.sparse import diags
-import scipy.sparse as sps
 import time
+import copy
+import numpy as np
+from numpy import linalg as LA
+from scipy.sparse.linalg import svds
+
 from .algo_utils import HALS_iter_solver, calculate_obj_NMF
 
 
