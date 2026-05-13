@@ -60,6 +60,23 @@ Experiments/configs/
 ```
 Adjust dataset paths, algorithm names, ranks (`latent_dim`), and time/error budgets as needed.
 
+
+---
+
+## 🔕 Logging
+
+By default, experiment scripts show progress messages through Python logging.
+
+To reduce the output, set the logging level to `WARNING` in the experiment script:
+
+```python
+import logging
+
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+)
+
 ---
 
 ## 🛠️ Development

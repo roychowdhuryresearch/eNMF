@@ -41,7 +41,9 @@ def save_initial_factors(save_dir, U, V, rank, init_method):
     logger.info("Saved initialization factors to %s.", save_path)
 
 
-def run_algorithm(method_name, X, U, V, dataset_name, rank, init_method, result_dir):
+def run_algorithm(
+    method_name, X, U, V, dataset_name, rank, init_method, result_dir, target_run_time
+):
     """Run one NMF algorithm with one initialization."""
     result_dir.mkdir(parents=True, exist_ok=True)
 
@@ -58,7 +60,7 @@ def run_algorithm(method_name, X, U, V, dataset_name, rank, init_method, result_
     algorithm = algorithm_cls(method_name=method_name, params=params)
 
     start_time = time.time()
-    algorithm.run_within_fixed_time(target_run_time=20)
+    algorithm.run_within_fixed_time(target_run_time=target_run_time)
     elapsed = time.time() - start_time
 
     logger.info(
@@ -123,6 +125,7 @@ def main():
                     rank=rank,
                     init_method=init_method,
                     result_dir=result_dir,
+                    target_run_time=target_run_time,
                 )
 
 
