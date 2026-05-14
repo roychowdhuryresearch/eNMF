@@ -25,14 +25,14 @@ pip install -e .
 ---
 ## 🧪 Experiments
 
-## 1) Prepare Datasets
+### 1) Prepare Datasets
 
 Create a top-level `Dataset/` folder and place files as described in `Dataset/README.md`.  
 
 
 ---
 
-## 2) Run Experiments
+### 2) Run Experiments
 
 Make sure the package is installed (editable install recommended during development):
 ```bash
@@ -76,7 +76,7 @@ logging.basicConfig(
     level=logging.WARNING,
     format="%(asctime)s | %(levelname)s | %(message)s",
 )
-
+```
 ---
 
 ## 🛠️ Development
