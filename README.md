@@ -89,4 +89,18 @@ cd src/nmf_algos/dataproto
 python -m pip install -U protobuf grpcio-tools
 python -m grpc_tools.protoc -I . --python_out=. data_config.proto
 ```
+---
 
+## 📖 Citation
+
+If you find this repository useful for your research, please cite our paper:
+
+```bibtex
+@article{enmf2026,
+  title={An Exterior Method for Nonnegative Matrix Factorization},
+  author={Qiujing Lu and Tonmoy Monsoor and Ehsan Ebrahimzadeh and Kartik Sharma and Vwani Roychowdhury},
+  journal={arXiv preprint arXiv:2605.19325},
+  year={2026},
+  url={http://arxiv.org/abs/2605.19325}
+}
+```
